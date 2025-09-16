@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: crypto-fx-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - LOG_LEVEL=info
+      - REDIS_URL=redis://redis:6379
+      - ENABLE_REDIS=true
+      - CACHE_TTL_SECONDS=300
+      - MEMORY_CACHE_SIZE=1000
+      - RATE_LIMIT_MAX=100
+      - RATE_LIMIT_WINDOW=60000
+      - REQUEST_TIMEOUT=10000
+      - RETRY_ATTEMPTS=3
+      - RETRY_DELAY=1000
+    depends_on:
+      - redis
+    networks:
+      - crypto-fx-network
+    volumes:
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: crypto-fx-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - crypto-fx-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  crypto-fx-network:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local

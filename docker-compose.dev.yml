@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: crypto-fx-api-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - LOG_LEVEL=debug
+      - REDIS_URL=redis://redis:6379
+      - ENABLE_REDIS=true
+      - CACHE_TTL_SECONDS=60
+      - MEMORY_CACHE_SIZE=500
+      - RATE_LIMIT_MAX=1000
+      - RATE_LIMIT_WINDOW=60000
+    depends_on:
+      - redis
+    networks:
+      - crypto-fx-network-dev
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: npm run dev
+
+  redis:
+    image: redis:7-alpine
+    container_name: crypto-fx-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
+    networks:
+      - crypto-fx-network-dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  crypto-fx-network-dev:
+    driver: bridge
