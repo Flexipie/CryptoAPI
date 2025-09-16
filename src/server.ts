@@ -9,6 +9,8 @@ import { appConfig } from './utils/config.js';
 import { logger } from './utils/logger.js';
 import { cacheService } from './services/cache.js';
 
+import { addSubscriptionInfo } from './middleware/subscription.js';
+
 import cryptoRoutes from './routes/crypto.js';
 import forexRoutes from './routes/forex.js';
 import healthRoutes from './routes/health.js';
@@ -162,6 +164,9 @@ export async function buildApp() {
     },
     transformSpecificationClone: true,
   });
+
+  // Add subscription middleware for RapidAPI integration
+  fastify.addHook('preHandler', addSubscriptionInfo);
 
   // API Routes
   await fastify.register(cryptoRoutes, { prefix: '/api/v1/crypto' });
