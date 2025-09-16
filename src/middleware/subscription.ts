@@ -117,14 +117,14 @@ export function getSubscriptionTier(request: FastifyRequest): SubscriptionTier {
   }
 
   // Return the subscription tier, defaulting to free
-  return SUBSCRIPTION_TIERS[subscription.toLowerCase()] || SUBSCRIPTION_TIERS.free;
+  return (SUBSCRIPTION_TIERS[subscription.toLowerCase()] || SUBSCRIPTION_TIERS.free) as SubscriptionTier;
 }
 
 export function hasFeature(tier: SubscriptionTier, feature: string): boolean {
   return tier.features.includes(feature);
 }
 
-export function addSubscriptionInfo(request: FastifyRequest, reply: FastifyReply, next: () => void) {
+export function addSubscriptionInfo(request: FastifyRequest, _reply: FastifyReply, next: () => void) {
   // Add subscription tier to request context
   (request as any).subscriptionTier = getSubscriptionTier(request);
   next();
@@ -133,7 +133,7 @@ export function addSubscriptionInfo(request: FastifyRequest, reply: FastifyReply
 // Priority queue helper for paid users
 export function getPriorityDelay(tier: SubscriptionTier): number {
   // Higher tier = lower delay
-  const delays = {
+  const delays: Record<number, number> = {
     1: 100, // Free - 100ms delay
     2: 50,  // Starter - 50ms delay
     3: 20,  // Professional - 20ms delay
@@ -141,7 +141,7 @@ export function getPriorityDelay(tier: SubscriptionTier): number {
     5: 0    // Ultra - no delay
   };
 
-  return delays[tier.priority] || 100;
+  return delays[tier.priority] ?? 100;
 }
 
 // Rate limiting helper based on subscription
@@ -155,8 +155,8 @@ export function getCustomRateLimit(tier: SubscriptionTier) {
       const rapidApiUser = request.headers['x-rapidapi-user'] as string;
       return rapidApiUser || request.ip;
     },
-    errorResponseBuilder: (request: FastifyRequest, context: any) => {
-      const tier = (request as any).subscriptionTier as SubscriptionTier;
+    errorResponseBuilder: (request: FastifyRequest, _context: any) => {
+      const tier = (request as any).subscriptionTier as SubscriptionTier || SUBSCRIPTION_TIERS.free;
       return {
         success: false,
         error: {
