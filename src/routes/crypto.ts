@@ -237,7 +237,10 @@ const cryptoRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
             type: 'object',
             properties: {
               success: { type: 'boolean' },
-              data: { type: 'object' },
+              data: {
+                type: 'object',
+                additionalProperties: true
+              },
               timestamp: { type: 'string' },
               cache_hit: { type: 'boolean' },
             },
@@ -248,7 +251,9 @@ const cryptoRoutes: FastifyPluginAsync = async (fastify: FastifyInstance) => {
     async (request, reply) => {
       try {
         const { id } = request.params as { id: string };
+        logger.info({ id }, 'Fetching coin info for ID');
         const data = await coinGeckoService.getCoinInfo(id);
+        logger.info({ id, dataKeys: Object.keys(data || {}), hasData: !!data }, 'Got coin info data');
         return successResponse(reply, data, false);
       } catch (error) {
         logger.error({ error }, 'Failed to fetch coin information');

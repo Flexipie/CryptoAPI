@@ -144,13 +144,43 @@ export class CoinGeckoService {
     }
 
     try {
-      const url = `${this.baseUrl}/coins/${coinId}?localization=false&tickers=false&community_data=false&developer_data=false&sparkline=false`;
+      const url = `${this.baseUrl}/coins/${coinId}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false`;
+      logger.info({ url }, 'Fetching coin info from CoinGecko');
       const response = await httpClient.get<any>(url);
+      logger.info({ coinId, responseKeys: Object.keys(response || {}) }, 'Raw response from CoinGecko');
 
-      await cacheService.set(cacheKey, response, 1800); // Cache for 30 minutes
-      logger.info({ coinId }, 'Fetched coin info from CoinGecko');
+      // Transform the response to include only relevant data
+      const transformedData = {
+        id: response.id,
+        symbol: response.symbol,
+        name: response.name,
+        description: response.description?.en || '',
+        image: {
+          thumb: response.image?.thumb,
+          small: response.image?.small,
+          large: response.image?.large,
+        },
+        market_cap_rank: response.market_cap_rank,
+        market_data: response.market_data ? {
+          current_price: response.market_data.current_price || {},
+          market_cap: response.market_data.market_cap || {},
+          total_volume: response.market_data.total_volume || {},
+          high_24h: response.market_data.high_24h || {},
+          low_24h: response.market_data.low_24h || {},
+          price_change_24h: response.market_data.price_change_24h,
+          price_change_percentage_24h: response.market_data.price_change_percentage_24h,
+          circulating_supply: response.market_data.circulating_supply,
+          total_supply: response.market_data.total_supply,
+          max_supply: response.market_data.max_supply,
+        } : null,
+        categories: response.categories || [],
+        last_updated: response.last_updated,
+      };
 
-      return response;
+      await cacheService.set(cacheKey, transformedData, 1800); // Cache for 30 minutes
+      logger.info({ coinId, dataKeys: Object.keys(transformedData) }, 'Fetched and transformed coin info from CoinGecko');
+
+      return transformedData;
     } catch (error) {
       logger.error({ error, coinId }, 'Failed to fetch coin info from CoinGecko');
       throw new Error(`Failed to fetch coin info: ${(error as Error).message}`);
