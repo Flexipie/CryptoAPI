@@ -1,7 +1,6 @@
 import Fastify from 'fastify';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUI from '@fastify/swagger-ui';
-import fastifyRateLimit from '@fastify/rate-limit';
 import fastifyCors from '@fastify/cors';
 import fastifyHelmet from '@fastify/helmet';
 
@@ -9,11 +8,13 @@ import { appConfig } from './utils/config.js';
 import { logger } from './utils/logger.js';
 import { cacheService } from './services/cache.js';
 
-import { addSubscriptionInfo } from './middleware/subscription.js';
+import { authenticateRequest } from './middleware/auth.js';
+import { createAdaptiveRateLimit, createBurstRateLimit } from './middleware/rateLimit.js';
 
 import cryptoRoutes from './routes/crypto.js';
 import forexRoutes from './routes/forex.js';
 import healthRoutes from './routes/health.js';
+import portfolioRoutes from './routes/portfolio.js';
 
 export async function buildApp() {
   const fastify = Fastify({
@@ -66,31 +67,14 @@ export async function buildApp() {
     },
   });
 
-  // Rate limiting
-  await fastify.register(fastifyRateLimit, {
-    max: appConfig.RATE_LIMIT_MAX,
-    timeWindow: appConfig.RATE_LIMIT_WINDOW,
-    cache: 10000,
-    allowList: ['127.0.0.1', '::1'],
-    keyGenerator: (request) => {
-      const forwarded = request.headers['x-forwarded-for'] as string;
-      const realIp = request.headers['x-real-ip'] as string;
-      return forwarded?.split(',')[0]?.trim() || realIp || request.ip;
-    },
-    errorResponseBuilder: (_request, context) => {
-      return {
-        success: false,
-        error: 'Rate limit exceeded. Please try again later.',
-        timestamp: new Date().toISOString(),
-        details: {
-          limit: context.max,
-          window: `${appConfig.RATE_LIMIT_WINDOW}ms`,
-          remaining: context.max - (context as any).count,
-          reset: new Date(Date.now() + appConfig.RATE_LIMIT_WINDOW).toISOString(),
-        },
-      };
-    },
-  });
+  // Authentication middleware (must come before rate limiting)
+  fastify.addHook('preHandler', authenticateRequest);
+
+  // Adaptive rate limiting based on subscription plans
+  fastify.addHook('preHandler', createAdaptiveRateLimit());
+
+  // Burst protection
+  fastify.addHook('preHandler', createBurstRateLimit());
 
   // Swagger/OpenAPI documentation
   await fastify.register(fastifySwagger, {
@@ -165,12 +149,10 @@ export async function buildApp() {
     transformSpecificationClone: true,
   });
 
-  // Add subscription middleware for RapidAPI integration
-  fastify.addHook('preHandler', addSubscriptionInfo);
-
   // API Routes
   await fastify.register(cryptoRoutes, { prefix: '/api/v1/crypto' });
   await fastify.register(forexRoutes, { prefix: '/api/v1/forex' });
+  await fastify.register(portfolioRoutes, { prefix: '/api/v1/portfolio' });
   await fastify.register(healthRoutes, { prefix: '/api/v1' });
 
   // Root endpoint
@@ -184,6 +166,16 @@ export async function buildApp() {
       endpoints: {
         crypto: '/api/v1/crypto',
         forex: '/api/v1/forex',
+        portfolio: '/api/v1/portfolio',
+      },
+      authentication: {
+        required: false,
+        api_key_header: 'X-API-Key',
+        demo_keys: {
+          free: 'demo_free_key',
+          basic: 'demo_basic_key',
+          pro: 'demo_pro_key'
+        }
       },
       timestamp: new Date().toISOString(),
     };
