@@ -98,6 +98,15 @@ API_KEYS.set('demo_pro_key', {
   usageCount: 0
 });
 
+API_KEYS.set('demo_ultra_key', {
+  key: 'demo_ultra_key',
+  userId: 'demo_user_ultra',
+  plan: 'ultra',
+  isActive: true,
+  createdAt: new Date(),
+  usageCount: 0
+});
+
 export interface AuthenticatedRequest extends FastifyRequest {
   user?: {
     userId: string;
